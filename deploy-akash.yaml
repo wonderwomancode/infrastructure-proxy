@@ -1,0 +1,95 @@
+---
+# Akash SDL - SSL Proxy
+#
+# Caddy-based SSL termination proxy with automatic Let's Encrypt certificates.
+# Uses DNS-01 challenges via Cloudflare API.
+#
+# This proxy handles SSL for all AlternateFutures services.
+# Backend services should be deployed separately and referenced by their
+# Akash ingress URLs.
+#
+# Required secrets:
+#   - CF_API_TOKEN: Cloudflare API token with Zone:DNS:Edit permission
+#   - GHCR_PAT: GitHub Container Registry token
+
+version: "2.0"
+
+services:
+  ssl-proxy:
+    image: ghcr.io/alternatefutures/ssl-proxy:latest
+    credentials:
+      host: ghcr.io
+      username: alternatefutures
+      password: ${GHCR_PAT}
+    params:
+      storage:
+        certs:
+          mount: /data
+    expose:
+      # HTTPS traffic
+      - port: 443
+        as: 443
+        to:
+          - global: true
+        accept:
+          - auth.alternatefutures.ai
+          - api.alternatefutures.ai
+          - app.alternatefutures.ai
+          - docs.alternatefutures.ai
+      # HTTP (redirects to HTTPS)
+      - port: 80
+        as: 80
+        to:
+          - global: true
+        accept:
+          - auth.alternatefutures.ai
+          - api.alternatefutures.ai
+          - app.alternatefutures.ai
+          - docs.alternatefutures.ai
+      # Health check endpoint
+      - port: 8080
+        as: 8080
+        to:
+          - global: true
+    env:
+      # Cloudflare API token for DNS-01 Let's Encrypt challenges
+      - CF_API_TOKEN=${CF_API_TOKEN}
+      # Backend service URLs (Akash ingress endpoints)
+      # Update these when backend services are redeployed
+      - AUTH_BACKEND=${AUTH_BACKEND:-ubsm31q4ol97b1pi5l06iognug.ingress.europlots.com}
+      - API_BACKEND=${API_BACKEND:-cjrdmusuql9e34bevi8mjgj8pg.ingress.europlots.com}
+      - APP_BACKEND=${APP_BACKEND:-app.ingress.europlots.com}
+
+profiles:
+  compute:
+    ssl-proxy:
+      resources:
+        cpu:
+          units: 0.5
+        memory:
+          size: 512Mi
+        storage:
+          - size: 256Mi
+          - name: certs
+            size: 100Mi
+            attributes:
+              persistent: true
+              class: beta3
+
+  placement:
+    akash:
+      attributes:
+        host: akash
+      signedBy:
+        anyOf:
+          - "akash1365yvmc4s7awdyj3n2sav7xfx76adc6dnmlx63"
+      pricing:
+        ssl-proxy:
+          denom: uakt
+          amount: 50
+
+deployment:
+  ssl-proxy:
+    akash:
+      profile: ssl-proxy
+      count: 1
