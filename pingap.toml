@@ -21,14 +21,12 @@ buffer_days = 30
 [upstreams.auth]
 addrs = ["ubsm31q4ol97b1pi5l06iognug.ingress.europlots.com:443"]
 sni = "ubsm31q4ol97b1pi5l06iognug.ingress.europlots.com"
-health_check = "/health"
 connection_timeout = "10s"
 
 # API Service Backend
 [upstreams.api]
 addrs = ["cjrdmusuql9e34bevi8mjgj8pg.ingress.europlots.com:443"]
 sni = "cjrdmusuql9e34bevi8mjgj8pg.ingress.europlots.com"
-health_check = "/health"
 connection_timeout = "10s"
 
 # App Backend (placeholder)
