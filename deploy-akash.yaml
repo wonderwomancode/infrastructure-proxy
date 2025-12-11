@@ -16,11 +16,7 @@ version: "2.0"
 
 services:
   ssl-proxy:
-    image: ghcr.io/alternatefutures/ssl-proxy:latest
-    credentials:
-      host: ghcr.io
-      username: alternatefutures
-      password: ${GHCR_PAT}
+    image: ghcr.io/wonderwomancode/infrastructure-proxy:latest
     params:
       storage:
         certs:
