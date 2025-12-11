@@ -20,3 +20,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
 
 # Run Pingap
 CMD ["pingap", "-c", "/etc/pingap/pingap.toml"]
+
