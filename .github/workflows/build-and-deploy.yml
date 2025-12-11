@@ -24,7 +24,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: alternatefutures/ssl-proxy
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build:
