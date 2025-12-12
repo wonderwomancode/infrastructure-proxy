@@ -61,10 +61,11 @@ proxy_set_headers = ["X-Forwarded-Proto: https", "X-Real-IP: $remote_addr"]
 path = "/health"
 plugins = ["pingap:responseHeaders?X-Health-Check:ok", "pingap:mock?status=200&text=OK"]
 
-# HTTPS Server
+# HTTPS Server - with TLS certificate linked
 [servers.https]
 addr = "0.0.0.0:443"
 locations = ["auth", "api", "app"]
+tls_cert = "alternatefutures"
 tls_cipher_list = "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
 tls_min_version = "1.2"
 enabled_h2 = true
