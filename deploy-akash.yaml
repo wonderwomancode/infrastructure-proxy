@@ -27,9 +27,11 @@ services:
         to:
           - global: true
         accept:
+          - alternatefutures.ai
           - auth.alternatefutures.ai
           - api.alternatefutures.ai
           - app.alternatefutures.ai
+          - docs.alternatefutures.ai
       # Health check endpoint
       - port: 8080
         as: 8080
