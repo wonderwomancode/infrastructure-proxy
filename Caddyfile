@@ -18,6 +18,54 @@
     admin 0.0.0.0:2019
 }
 
+# Main Website (IPFS-hosted)
+alternatefutures.ai {
+    tls {
+        dns cloudflare {env.CF_API_TOKEN}
+    }
+
+    # Proxy to IPFS gateway - web-app CID
+    reverse_proxy http://provider.europlots.com:32160 {
+        header_up Host {upstream_hostport}
+        rewrite * /ipfs/QmU4VRKexpuA6RvYfXY9nUsgiHRMLDhxvZFi7ssGHn3aHj{path}
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+
+    log {
+        output stdout
+        format json
+    }
+}
+
+# Documentation (IPFS-hosted)
+docs.alternatefutures.ai {
+    tls {
+        dns cloudflare {env.CF_API_TOKEN}
+    }
+
+    # Proxy to IPFS gateway - docs CID
+    reverse_proxy http://provider.europlots.com:32160 {
+        header_up Host {upstream_hostport}
+        rewrite * /ipfs/QmeQe1QuyiAiyCrJLASixPtH2VW6xQZxcpqCHJsUTtxfUR{path}
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+
+    log {
+        output stdout
+        format json
+    }
+}
+
 # Auth Service
 auth.alternatefutures.ai {
     # DNS-01 challenge via Cloudflare
@@ -60,13 +108,17 @@ api.alternatefutures.ai {
     }
 }
 
-# App (Web Dashboard)
+# App (Web Dashboard) - also IPFS-hosted
 app.alternatefutures.ai {
     tls {
         dns cloudflare {env.CF_API_TOKEN}
     }
 
-    reverse_proxy {$APP_BACKEND:web-app:3000}
+    # Proxy to IPFS gateway - web-app CID
+    reverse_proxy http://provider.europlots.com:32160 {
+        header_up Host {upstream_hostport}
+        rewrite * /ipfs/QmU4VRKexpuA6RvYfXY9nUsgiHRMLDhxvZFi7ssGHn3aHj{path}
+    }
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
