@@ -1,54 +1,121 @@
 ---
-# Akash SDL - SSL Proxy (Pingap)
+# Akash SDL - Dynamic SSL Proxy (Pingap + etcd)
 #
-# Pingap-based SSL termination proxy with Cloudflare Origin Certificate.
-# Uses static TLS cert (no ACME) - more reliable than DNS-01 challenges.
-# Built on Cloudflare's Pingora framework for high performance.
+# Multi-container deployment with dynamic routing configuration.
+# Pingap reads configuration from etcd and hot-reloads within 10 seconds.
+# No proxy restart required when adding new routes.
 #
-# This proxy handles SSL for all AlternateFutures services.
-# Backend services should be deployed separately and referenced by their
-# Akash ingress URLs in pingap.toml.
+# Components:
+#   - etcd: Configuration storage for dynamic routing
+#   - ssl-proxy: Pingap reverse proxy with etcd backend
+#
+# This proxy handles SSL termination for all AlternateFutures services
+# and customer sites. Routes are managed via service-cloud-api.
 #
 # Required env:
 #   - PINGAP_TLS_CERT: Cloudflare Origin Certificate (PEM)
 #   - PINGAP_TLS_KEY: Private key (PEM)
+#   - ETCD_ROOT_PASSWORD: etcd authentication password
 #
 # SSL Mode: Cloudflare Full (Strict) - end-to-end encryption
 
 version: "2.0"
 
 services:
-  ssl-proxy:
-    image: ghcr.io/alternatefutures/infrastructure-proxy-pingap:main
+  # etcd - Configuration storage for dynamic routing
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.12
     expose:
-      # HTTPS traffic
+      # Client port - accessible to ssl-proxy
+      - port: 2379
+        as: 2379
+        to:
+          - service: ssl-proxy
+      # Peer port - internal clustering (not used in single-node setup)
+      - port: 2380
+        as: 2380
+        to:
+          - service: etcd
+    env:
+      - ETCD_NAME=etcd0
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=af-proxy-cluster
+    args:
+      - /usr/local/bin/etcd
+
+  # ssl-proxy - Pingap reverse proxy with etcd backend
+  ssl-proxy:
+    image: ghcr.io/alternatefutures/infrastructure-proxy-pingap:etcd
+    expose:
+      # HTTPS traffic - accepts wildcard domains for customer sites
       - port: 443
         as: 443
         to:
           - global: true
         accept:
+          # Core AlternateFutures services
           - alternatefutures.ai
           - auth.alternatefutures.ai
           - api.alternatefutures.ai
           - app.alternatefutures.ai
           - docs.alternatefutures.ai
+          - secrets.alternatefutures.ai
+          # Function endpoints
+          - "*.fn.alternatefutures.ai"
+          # Customer domains (wildcards for common TLDs)
+          - "*.com"
+          - "*.io"
+          - "*.dev"
+          - "*.ai"
+          - "*.xyz"
+          - "*.app"
+          - "*.co"
+          - "*.net"
+          - "*.org"
       # Health check endpoint
       - port: 8080
         as: 8080
         to:
           - global: true
+      # Admin interface (internal only)
+      - port: 3018
+        as: 3018
+        to:
+          - service: ssl-proxy
     env:
+      # etcd connection
+      - PINGAP_ETCD_ADDR=http://etcd:2379
+      - PINGAP_ETCD_PREFIX=/pingap/config
       # Cloudflare Origin Certificate and Private Key
-      # These are written to files by entrypoint.sh
       - PINGAP_TLS_CERT=${PINGAP_TLS_CERT}
       - PINGAP_TLS_KEY=${PINGAP_TLS_KEY}
+      # Admin interface
+      - PINGAP_ADMIN_ADDR=0.0.0.0:3018
+    depends_on:
+      - service: etcd
 
 profiles:
   compute:
-    ssl-proxy:
+    etcd:
       resources:
         cpu:
           units: 0.5
+        memory:
+          size: 512Mi
+        storage:
+          - size: 2Gi
+            name: etcd-data
+
+    ssl-proxy:
+      resources:
+        cpu:
+          units: 1
         memory:
           size: 512Mi
         storage:
@@ -62,11 +129,18 @@ profiles:
         anyOf:
           - "akash1365yvmc4s7awdyj3n2sav7xfx76adc6dnmlx63"
       pricing:
+        etcd:
+          denom: uakt
+          amount: 1000
         ssl-proxy:
           denom: uakt
           amount: 1000
 
 deployment:
+  etcd:
+    akash:
+      profile: etcd
+      count: 1
   ssl-proxy:
     akash:
       profile: ssl-proxy
