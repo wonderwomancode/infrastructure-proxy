@@ -87,8 +87,8 @@ jobs:
           # Use the first tag (branch name)
           IMAGE=$(echo "$IMAGE_TAG" | head -1)
 
-          # Use heredoc with variable expansion (no 'quotes' around SDLEOF)
-          cat > deploy-with-tls.yaml << SDLEOF
+          # Create template without variable expansion (single-quoted heredoc)
+          cat > /tmp/sdl-template.yaml << 'SDLEOF'
 ---
 version: "2.0"
 
@@ -101,7 +101,7 @@ endpoints:
 
 services:
   ssl-proxy:
-    image: ${IMAGE}
+    image: __IMAGE__
     expose:
       - port: 443
         as: 443
@@ -118,8 +118,8 @@ services:
         to:
           - global: true
     env:
-      - PINGAP_TLS_CERT=${CLOUDFLARE_ORIGIN_CERT}
-      - PINGAP_TLS_KEY=${CLOUDFLARE_ORIGIN_KEY}
+      - PINGAP_TLS_CERT=__CERT__
+      - PINGAP_TLS_KEY=__KEY__
 
 profiles:
   compute:
@@ -151,6 +151,11 @@ deployment:
       profile: ssl-proxy
       count: 1
 SDLEOF
+
+          # Replace placeholders with actual values using awk (handles special chars)
+          awk -v img="$IMAGE" -v cert="$CLOUDFLARE_ORIGIN_CERT" -v key="$CLOUDFLARE_ORIGIN_KEY" '
+            { gsub(/__IMAGE__/, img); gsub(/__CERT__/, cert); gsub(/__KEY__/, key); print }
+          ' /tmp/sdl-template.yaml > deploy-with-tls.yaml
 
           echo "Generated SDL with TLS certificates"
 
