@@ -150,9 +150,10 @@ User → secrets.alternatefutures.ai → Pingap (rewrites Host) → Backend ngin
 
 | Field | Value |
 |-------|-------|
-| DSEQ | 24648263 |
+| DSEQ | 24648398 |
 | Provider | akash1aaul837r7en7hpk9wv2svg8u78fdq0t2j2e82z |
 | Dedicated IP | **77.76.13.214** |
+| Image | ghcr.io/wonderwomancode/infrastructure-proxy-pingap:7235adc |
 | Port 443 | Direct to container |
 | Port 80 | Direct to container |
 
