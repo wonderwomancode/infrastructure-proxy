@@ -1,0 +1,74 @@
+---
+version: "2.0"
+
+# Pingap Proxy with Dedicated IP Lease
+# This bypasses Akash provider nginx entirely - traffic comes directly to our container
+#
+# Benefits:
+# - Full control over TLS termination
+# - Custom domain routing works (we handle Host headers)
+# - Standard ports 80/443 available
+#
+# Docs: https://docs.akash.network/features/ip-leases
+
+# Declare IP endpoint at top level
+endpoints:
+  proxy-ip:
+    kind: ip
+
+services:
+  ssl-proxy:
+    image: ghcr.io/wonderwomancode/infrastructure-proxy-pingap:main
+    expose:
+      # HTTPS - direct to our container via dedicated IP
+      - port: 443
+        as: 443
+        to:
+          - global: true
+            ip: proxy-ip  # Bind to leased IP
+      # HTTP - for redirects
+      - port: 80
+        as: 80
+        to:
+          - global: true
+            ip: proxy-ip
+      # Health check (internal only, not on dedicated IP)
+      - port: 8080
+        as: 8080
+        to:
+          - global: true
+    env:
+      # TLS certificates from Cloudflare Origin Certificate
+      # Use pipe (|) as line separator when setting via console
+      - PINGAP_TLS_CERT=<REPLACE_WITH_ORIGIN_CERT>
+      - PINGAP_TLS_KEY=<REPLACE_WITH_ORIGIN_KEY>
+
+profiles:
+  compute:
+    ssl-proxy:
+      resources:
+        cpu:
+          units: 1
+        memory:
+          size: 512Mi
+        storage:
+          - size: 512Mi
+
+  placement:
+    dcloud:
+      attributes:
+        host: akash
+      signedBy:
+        anyOf:
+          - akash1365yvmc4s7awdyj3n2sav7xfx76adc6dnmlx63
+          - akash18qa2a2ltfyvkyj0ggj3hkvuj6twzyumuaru9s4
+      pricing:
+        ssl-proxy:
+          denom: uakt
+          amount: 10000
+
+deployment:
+  ssl-proxy:
+    dcloud:
+      profile: ssl-proxy
+      count: 1

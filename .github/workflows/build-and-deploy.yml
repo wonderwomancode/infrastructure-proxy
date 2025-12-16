@@ -1,10 +1,13 @@
 name: Build and Deploy SSL Proxy
 
-# Builds custom Caddy image with Cloudflare DNS plugin for DNS-01 challenges.
-# Deploys to Akash Network for decentralized SSL termination.
+# IMPORTANT: This proxy uses Akash IP Leases for dedicated IP addresses.
+# This bypasses provider nginx entirely, enabling custom domain routing.
 #
-# This enables automatic Let's Encrypt SSL for custom domains on Akash
-# where HTTP-01 challenges don't work due to ingress interception.
+# Architecture:
+#   User → Cloudflare → Dedicated IP:443 → Pingap container
+#   (No provider nginx in the path!)
+#
+# Docs: https://docs.akash.network/features/ip-leases
 
 on:
   push:
@@ -12,9 +15,9 @@ on:
       - main
     paths:
       - 'Dockerfile'
-      - 'Caddyfile'
       - 'pingap.toml'
-      - 'deploy-akash.yaml'
+      - 'deploy-akash-ip-lease.yaml'
+      - 'entrypoint.sh'
       - '.github/workflows/build-and-deploy.yml'
   workflow_dispatch:
     inputs:
@@ -27,6 +30,8 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}-pingap
+  # SDL file to use for deployment (with IP lease)
+  SDL_FILE: deploy-akash-ip-lease.yaml
 
 jobs:
   build:
@@ -78,10 +83,21 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Features" >> $GITHUB_STEP_SUMMARY
-          echo "- Cloudflare DNS plugin for DNS-01 Let's Encrypt challenges" >> $GITHUB_STEP_SUMMARY
-          echo "- Automatic certificate provisioning for custom domains" >> $GITHUB_STEP_SUMMARY
-          echo "- Works on Akash Network (no HTTP-01 port 80 required)" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SDL:** \`${{ env.SDL_FILE }}\` (with IP Lease)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### IP Lease Benefits" >> $GITHUB_STEP_SUMMARY
+          echo "- Dedicated public IP address" >> $GITHUB_STEP_SUMMARY
+          echo "- Direct traffic to container (bypasses provider nginx)" >> $GITHUB_STEP_SUMMARY
+          echo "- Custom domain routing works with any Host header" >> $GITHUB_STEP_SUMMARY
+          echo "- Standard ports 80/443 available" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Manual Deployment Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Deploy \`${{ env.SDL_FILE }}\` via Akash Console" >> $GITHUB_STEP_SUMMARY
+          echo "2. Note the leased IP from deployment status" >> $GITHUB_STEP_SUMMARY
+          echo "3. Update Cloudflare A records to point to leased IP" >> $GITHUB_STEP_SUMMARY
+          echo "4. Set TLS cert env vars (PINGAP_TLS_CERT, PINGAP_TLS_KEY)" >> $GITHUB_STEP_SUMMARY
 
   deploy:
     name: Deploy to Akash
@@ -102,11 +118,27 @@ jobs:
 
       - name: Deploy Notice
         run: |
-          echo "## Akash Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "## Akash Deployment with IP Lease" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To deploy manually:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Use Akash Console or CLI with \`deploy-akash.yaml\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Set \`CF_API_TOKEN\` secret in deployment" >> $GITHUB_STEP_SUMMARY
-          echo "3. Update DNS in \`infrastructure-dns\` repo" >> $GITHUB_STEP_SUMMARY
+          echo "### IMPORTANT: Using IP Lease SDL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "See SSL_ARCHITECTURE.md for full deployment guide." >> $GITHUB_STEP_SUMMARY
+          echo "This deployment uses \`${{ env.SDL_FILE }}\` which includes:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`endpoints.proxy-ip.kind: ip\` for dedicated IP" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ip: proxy-ip\` binding on port 443" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Why IP Lease?" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Without IP lease, Akash uses shared HTTP ingress:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "User → Provider nginx (404 for custom domains) → Container" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "With IP lease:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "User → Dedicated IP:443 → Container (directly)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Post-Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "1. Get leased IP from Akash deployment status" >> $GITHUB_STEP_SUMMARY
+          echo "2. Update DNS A records in Cloudflare" >> $GITHUB_STEP_SUMMARY
+          echo "3. The IP is retained across manifest updates" >> $GITHUB_STEP_SUMMARY
