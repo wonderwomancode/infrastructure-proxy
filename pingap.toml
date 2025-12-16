@@ -53,14 +53,14 @@ verify_cert = false
 upstream = "auth"
 host = "auth.alternatefutures.ai"
 path = "/"
-proxy_set_headers = ["X-Forwarded-Proto: https", "X-Real-IP: $remote_addr"]
+proxy_set_headers = ["Host: ubsm31q4ol97b1pi5l06iognug.ingress.europlots.com", "X-Forwarded-Proto: https", "X-Forwarded-Host: auth.alternatefutures.ai", "X-Real-IP: $remote_addr"]
 
 # Route: API Service
 [locations.api]
 upstream = "api"
 host = "api.alternatefutures.ai"
 path = "/"
-proxy_set_headers = ["X-Forwarded-Proto: https", "X-Real-IP: $remote_addr"]
+proxy_set_headers = ["Host: rvknp4kjg598n8uslgnovkrdpk.ingress.gpu.subangle.com", "X-Forwarded-Proto: https", "X-Forwarded-Host: api.alternatefutures.ai", "X-Real-IP: $remote_addr"]
 
 # Route: Main Website (IPFS-hosted web-app)
 [locations.website]
@@ -91,7 +91,7 @@ proxy_set_headers = ["X-Forwarded-Proto: https", "X-Real-IP: $remote_addr"]
 upstream = "secrets"
 host = "secrets.alternatefutures.ai"
 path = "/"
-proxy_set_headers = ["X-Forwarded-Proto: https", "X-Real-IP: $remote_addr"]
+proxy_set_headers = ["Host: v8c1fui9p1dah5m86ctithi5ok.ingress.europlots.com", "X-Forwarded-Proto: https", "X-Forwarded-Host: secrets.alternatefutures.ai", "X-Real-IP: $remote_addr"]
 
 # Health check route
 [locations.health]
