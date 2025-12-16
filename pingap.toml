@@ -26,8 +26,8 @@ connection_timeout = "10s"
 
 # API Service Backend
 [upstreams.api]
-addrs = ["cjrdmusuql9e34bevi8mjgj8pg.ingress.europlots.com:443"]
-sni = "cjrdmusuql9e34bevi8mjgj8pg.ingress.europlots.com"
+addrs = ["rvknp4kjg598n8uslgnovkrdpk.ingress.gpu.subangle.com:443"]
+sni = "rvknp4kjg598n8uslgnovkrdpk.ingress.gpu.subangle.com"
 connection_timeout = "10s"
 
 # IPFS Gateway Backend (for static sites)
@@ -37,8 +37,8 @@ connection_timeout = "30s"
 
 # Secrets (Infisical) Backend
 [upstreams.secrets]
-addrs = ["pf3ca74njl8ch8ta1qiocss0a0.ingress.europlots.com:443"]
-sni = "pf3ca74njl8ch8ta1qiocss0a0.ingress.europlots.com"
+addrs = ["v8c1fui9p1dah5m86ctithi5ok.ingress.europlots.com:443"]
+sni = "v8c1fui9p1dah5m86ctithi5ok.ingress.europlots.com"
 connection_timeout = "10s"
 
 # Route: Auth Service

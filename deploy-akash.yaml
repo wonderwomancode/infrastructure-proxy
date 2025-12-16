@@ -18,6 +18,35 @@
 #   - ETCD_ROOT_PASSWORD: etcd authentication password
 #
 # SSL Mode: Cloudflare Full (Strict) - end-to-end encryption
+#
+# ============================================================================
+# DEPLOYMENT UPDATE RULES
+# ============================================================================
+#
+# MANIFEST-ONLY UPDATE (same dseq, same ingress URL, no DNS change):
+#   Use `akash tx deployment update` or send-manifest API
+#   - Environment variable changes (env section)
+#   - Docker image tag changes (e.g., :latest → :v1.2.3)
+#   - Command/args changes
+#   - Container entrypoint changes
+#   NOTE: Resources (CPU, memory, storage) must remain IDENTICAL
+#
+# FULL REDEPLOY REQUIRED (new dseq, NEW ingress URL, DNS update needed):
+#   Must close old deployment and create new one
+#   - CPU units changes
+#   - Memory size changes
+#   - Storage size changes
+#   - Adding/removing services
+#   - Changing exposed ports
+#   - Changing service names
+#   - Changing placement/provider attributes
+#
+# After full redeploy, update DNS:
+#   1. Get new ingress URL from `akash query market lease-status`
+#   2. Update Cloudflare CNAME: secrets.alternatefutures.ai → new-ingress.provider.com
+#   3. Close old deployment to stop billing
+#
+# ============================================================================
 
 version: "2.0"
 

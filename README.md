@@ -1,6 +1,6 @@
-# AlternateFutures SSL Proxy (Pingap)
+# AlternateFutures SSL Proxy (Pingap + etcd)
 
-High-performance SSL termination proxy for AlternateFutures services running on Akash Network. Built on Cloudflare's Pingora framework.
+High-performance SSL termination proxy with **dynamic routing** for AlternateFutures services running on Akash Network. Built on Cloudflare's Pingora framework with etcd backend for hot-reload configuration.
 
 ## Current Deployment
 
@@ -8,14 +8,24 @@ High-performance SSL termination proxy for AlternateFutures services running on 
 |-------|-------|
 | **DSEQ** | 24576255 |
 | **Provider** | Europlots (`akash162gym3szcy9d993gs3tyu0mg2ewcjacen9nwsu`) |
-| **Image** | `ghcr.io/alternatefutures/infrastructure-proxy-pingap:main` |
-| **Status** | Running, awaiting Cloudflare zone activation |
+| **Image (Static)** | `ghcr.io/alternatefutures/infrastructure-proxy-pingap:main` |
+| **Image (Dynamic)** | `ghcr.io/alternatefutures/infrastructure-proxy-pingap:etcd` |
+| **Status** | Running |
 
 ## Overview
 
-This proxy solves a key challenge with Akash Network: providers use DNS-01 Let's Encrypt challenges with wildcard certificates for their own domains, but **cannot** provision certificates for tenant custom domains.
+This proxy solves two key challenges with Akash Network:
 
-Our solution uses Pingap (built on Pingora) with native Cloudflare DNS support to obtain Let's Encrypt certificates via DNS-01 challenges, enabling automatic SSL for custom domains on Akash.
+1. **SSL for custom domains**: Akash providers use wildcard certificates for their own domains but cannot provision certificates for tenant custom domains. We use Cloudflare Origin Certificates for end-to-end encryption.
+
+2. **Dynamic routing without restart**: Customer sites deployed to IPFS/Arweave need proxy routes created automatically. The etcd backend enables hot-reload within ~10 seconds.
+
+### Deployment Modes
+
+| Mode | Image Tag | Use Case |
+|------|-----------|----------|
+| **Static** | `:main` | Fixed routes in `pingap.toml`, manual updates |
+| **Dynamic** | `:etcd` | Routes managed via etcd, auto-updated by service-cloud-api |
 
 ### Why Pingap over Caddy?
 
@@ -23,11 +33,13 @@ Our solution uses Pingap (built on Pingora) with native Cloudflare DNS support t
 |---------|--------|-------|
 | Memory usage | ~15MB | ~30MB |
 | CPU usage | 70% less | Baseline |
-| DNS-01 Cloudflare | Native | Plugin required |
+| Hot reload | Native etcd | Requires restart |
 | Custom build | No | Yes (xcaddy) |
 | Framework | Rust (Pingora) | Go |
 
 ## Architecture
+
+### Static Mode (Current)
 
 ```
                          Internet
@@ -35,42 +47,112 @@ Our solution uses Pingap (built on Pingora) with native Cloudflare DNS support t
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              DNS (Cloudflare + Google + deSEC)              │
-│                   Multi-provider redundancy                  │
-└───────────────────────────┬─────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Akash Provider Ingress                    │
 └───────────────────────────┬─────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     SSL Proxy (Pingap)                       │
-│                                                              │
-│  • DNS-01 Let's Encrypt via Cloudflare API                  │
-│  • Automatic cert provisioning & renewal                     │
-│  • Built on Cloudflare's Pingora (Rust)                     │
-│  • Routes to backend services                                │
+│  • Cloudflare Origin Certificate (Full Strict)              │
+│  • Static routes in pingap.toml                              │
 └───────────────────────────┬─────────────────────────────────┘
                             │
             ┌───────────────┼───────────────┐
             ▼               ▼               ▼
       ┌──────────┐   ┌──────────┐   ┌──────────┐
       │ Auth API │   │ GraphQL  │   │ Web App  │
-      │  :3000   │   │   API    │   │  :3000   │
-      └──────────┘   │  :4000   │   └──────────┘
+      └──────────┘   │   API    │   └──────────┘
                      └──────────┘
+```
+
+### Dynamic Mode (etcd)
+
+```
+                         Internet
+                            │
+        Customer Domains    │    Core Services
+     docs.example.com       │    auth.alternatefutures.ai
+     mysite.xyz             │    api.alternatefutures.ai
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     SSL Proxy (Pingap)                       │
+│  • Cloudflare Origin Certificate                             │
+│  • Dynamic routes from etcd (--autoreload)                  │
+│  • Hot-reload ~10 seconds                                    │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+                       ┌────┴────┐
+                       │  etcd   │◄────── service-cloud-api
+                       └────┬────┘        (writes routes)
+                            │
+     ┌──────────────────────┼──────────────────────┐
+     ▼                      ▼                      ▼
+┌──────────┐          ┌──────────┐          ┌──────────┐
+│   IPFS   │          │ Arweave  │          │  Akash   │
+│ Gateway  │          │ Gateway  │          │ Services │
+└──────────┘          └──────────┘          └──────────┘
 ```
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | Pingap image with config |
-| `pingap.toml` | Proxy configuration with DNS-01 TLS |
-| `deploy-akash.yaml` | Akash SDL for deployment |
+| `Dockerfile` | Pingap image with etcdctl for dynamic mode |
+| `pingap.toml` | Static proxy configuration (bootstrap) |
+| `entrypoint-etcd.sh` | Dynamic mode entrypoint (etcd bootstrap + Pingap) |
+| `entrypoint.sh` | Static mode entrypoint |
+| `deploy-akash.yaml` | Multi-container Akash SDL (etcd + Pingap) |
 | `SSL_ARCHITECTURE.md` | Detailed SSL/TLS documentation |
 | `Caddyfile` | (Deprecated) Old Caddy config |
+
+## Dynamic Routing (etcd Mode)
+
+When deployed with the `:etcd` image tag, the proxy uses etcd as a configuration backend. This enables:
+
+- **Automatic route creation** when sites are deployed via service-cloud-api
+- **Hot-reload** without container restart (~10 second propagation)
+- **Route persistence** across proxy restarts
+- **Centralized management** of all proxy routes
+
+### etcd Key Structure
+
+```
+/pingap/config/
+  ├── basic.toml              # Global Pingap settings
+  ├── certificates/
+  │   └── alternatefutures.toml  # Cloudflare Origin Cert
+  ├── upstreams/
+  │   ├── ipfs-gateway.toml   # Shared IPFS gateway
+  │   ├── arweave-gateway.toml
+  │   ├── auth.toml           # Core service
+  │   └── api.toml            # Core service
+  ├── locations/
+  │   ├── auth.toml           # Core route
+  │   ├── api.toml            # Core route
+  │   └── {routeId}.toml      # Customer site routes
+  └── servers/
+      ├── https.toml          # Main HTTPS server
+      └── health.toml         # Health check server
+```
+
+### Route Types
+
+| Backend Type | Use Case | Upstream |
+|--------------|----------|----------|
+| `IPFS` | Static sites on IPFS | `gateway.pinata.cloud` with CID rewrite |
+| `ARWEAVE` | Permanent sites on Arweave | `arweave.net` with TX rewrite |
+| `AKASH` | Dynamic apps on Akash | Direct to provider URL |
+| `FUNCTION` | Serverless functions | Function runtime endpoint |
+| `EXTERNAL` | External URLs | Custom upstream |
+
+### Integration with service-cloud-api
+
+The `ProxyRoutingService` in service-cloud-api automatically manages routes:
+
+```
+Deployment SUCCESS → handleDeploymentSuccess() → etcd route created
+Domain VERIFIED   → handleDomainVerified()    → etcd route created
+Site DELETED      → removeRoute()              → etcd route removed
+```
 
 ## Domains Handled
 
@@ -124,9 +206,22 @@ PINGAP_DNS_SERVICE_URL=https://api.cloudflare.com?token=<CF_API_TOKEN>
 
 ## Environment Variables
 
+### Static Mode
+
 | Variable | Format | Description |
 |----------|--------|-------------|
 | `PINGAP_DNS_SERVICE_URL` | `https://api.cloudflare.com?token=xxx` | Cloudflare API for DNS-01 |
+
+### Dynamic Mode (etcd)
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `PINGAP_ETCD_ADDR` | `http://etcd:2379` | etcd cluster address |
+| `PINGAP_ETCD_PREFIX` | `/pingap/config` | Key prefix for config |
+| `PINGAP_TLS_CERT` | `-----BEGIN CERT...` | Cloudflare Origin Certificate (PEM) |
+| `PINGAP_TLS_KEY` | `-----BEGIN KEY...` | Private key (PEM) |
+| `PINGAP_ADMIN_ADDR` | `0.0.0.0:3018` | Admin interface address |
+| `ETCD_ROOT_PASSWORD` | (optional) | etcd authentication password |
 
 ## Monitoring
 
